@@ -298,7 +298,12 @@ grid.arrange(plot1, plot3)
 
 ```
 
+We also tested US-Var. We see a similar issue here - the modelled NPP is failing
+to pick up the temporal variability in the observations and we are getting a 
+very poor R2 as a result. 
 
+Maybe precipitation alone isn't enough at these sites?
+Maybe a longer dataset is needed?
 
 ***
 # Thoughts
