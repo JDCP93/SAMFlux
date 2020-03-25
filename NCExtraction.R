@@ -1,15 +1,12 @@
-rm(list=ls())
 
-
+NetCDFExtract = function(name){
 library(dplyr)
 library(ncdf4)
 
 setwd("~/Documents/SAM Modelling/FluxCode")
 
-name = "US-Wkg_2005-2014_FLUXNET2015_"
-
-Met = nc_open(paste0(name,"Met.nc"))
-Flux = nc_open(paste0(name,"Flux.nc"))
+Met = nc_open(paste0(name,"_Met.nc"))
+Flux = nc_open(paste0(name,"_Flux.nc"))
 
 time = ncvar_get(Met,"time")
 Tair = ncvar_get(Met,"Tair")
@@ -53,3 +50,9 @@ colnames(Precip) <- c("ppt1","ppt2","ppt3","ppt4","ppt5","ppt6","ppt7","ppt8","p
 
 df_day$Year = format(df_day$day,"%Y")
 NEE = aggregate(df_day['NEE'],by=df_day['Year'],sum)
+
+Flux = list("Precip"=Precip,"NEE"=NEE)
+}
+
+
+Flux = NetCDFExtract("US-Ha1_1992-2012_FLUXNET2015")
