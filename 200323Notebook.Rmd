@@ -242,7 +242,62 @@ We have 10 years of Precip and NEE data from FLUXNET - however, because we are
 looking at a lag of 3 years, we effectively only have 7 years of NEE data.
 This is an exceptionally short data set. 
 
+NOTE, the above results are from only 500 samples. This will have reduced the 
+accuracy quite a bit.
+
 I may look at the longest data set available, no matter what the ecosystem is.
+
+I did the above for the dataset US-Ha1 - it's awful. This is a deciduous
+broadleaf forest... you'd think there should be some correlation between precip
+and NEE...
+
+```{r}
+source("NCExtraction.R")
+load("SAM_posterior_3_6_20200325_163324.Rdata")
+Flux = NetCDFExtract("US-Ha1_1992-2012_FLUXNET2015")
+library(ggplot2)
+library(gridExtra) # Source gridExtra for better plots
+NPPobs = data.frame(Year=1:nrow(Flux$NEE)+1992,
+                    NPP_obs = Flux$NEE[,2])
+NPPmod = data.frame(Year=1:length(SAM_posterior_3_6_20200325_163324$NPPmod$mean)+1995,
+                    NPP_mod = SAM_posterior_3_6_20200325_163324$NPPmod$mean,
+                    NPP_modmin = SAM_posterior_3_6_20200325_163324$NPPmod$min,
+                    NPP_modmax = SAM_posterior_3_6_20200325_163324$NPPmod$max)
+plot3 <- ggplot(NPPobs) +
+      geom_line(data=NPPobs,aes(Year,NPP_obs),color='steelblue',size=2) +
+      geom_point(data=NPPobs,aes(Year,NPP_obs),color='steelblue',size=2,na.rm=TRUE) +
+      geom_ribbon(data=NPPmod, aes(x=Year, ymin=NPP_modmin, ymax=NPP_modmax), fill="grey70", alpha=0.4) +
+      geom_line(data=NPPmod,aes(Year,NPP_mod)) +
+      theme_bw() +
+      theme(axis.line=element_line(colour = "black"),
+            panel.grid.major=element_blank(),
+            panel.grid.minor=element_blank(),
+            panel.border=element_blank(),
+            panel.background=element_blank()) 
+
+
+# Assemble the dataframe for spring/non-spring
+plotWeights = data.frame("Weights"=as.vector(t(SAM_posterior_3_6_20200325_163324$monthlyWeights$mean)),
+                         "YearIntoPast"=rep(0:2,each=12),
+                         "Month"=rep(c("Dec","Nov","Oct","Sep", "Aug","Jul",
+                                       "Jun", "May","Apr","Mar","Feb","Jan"),3))
+# Assign the factors
+plotWeights$Month = factor(plotWeights$Month, levels = c("Jan","Feb","Mar","Apr",
+                                                         "May","Jun","Jul","Aug",
+                                                         "Sep","Oct","Nov","Dec"))
+# Create plot ready for grid.assign
+plot1 <- ggplot(plotWeights,aes(x=YearIntoPast,y=Weights,fill=Month)) +
+      geom_bar(stat="identity", position=position_dodge(), linetype = "solid",size=0.5,color="black") +
+      facet_grid(.~YearIntoPast,scales = "free_x",switch = "x", space = "free_y") +
+      ggtitle(paste0("3 year lag, spring/non-spring (R2 = ",
+                     signif(SAM_posterior_3_6_20200325_163324$R2,2), ", DIC = ",
+                     signif(SAM_posterior_3_6_20200325_163324$DIC,4), ", MAE = ",
+                     signif(SAM_posterior_3_6_20200325_163324$MAE,4),")"))
+grid.arrange(plot1, plot3)
+
+```
+
+
 
 ***
 # Thoughts
