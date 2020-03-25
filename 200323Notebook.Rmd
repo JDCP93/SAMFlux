@@ -249,7 +249,8 @@ I may look at the longest data set available, no matter what the ecosystem is.
 
 I did the above for the dataset US-Ha1 - it's awful. This is a deciduous
 broadleaf forest... you'd think there should be some correlation between precip
-and NEE...
+and NEE... maybe soil moisture/routing depth/slower response time of tree growth
+mean that precipitation isn't such an important driver? Hmmm...
 
 ```{r}
 source("NCExtraction.R")

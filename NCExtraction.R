@@ -55,4 +55,4 @@ Flux = list("Precip"=Precip,"NEE"=NEE)
 }
 
 
-Flux = NetCDFExtract("US-Ha1_1992-2012_FLUXNET2015")
+Flux = NetCDFExtract("US-Var_2001-2014_FLUXNET2015")
