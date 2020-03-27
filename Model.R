@@ -8,7 +8,7 @@
 # rainfall events based on intensity
 
 model{
-
+  
   # Assign priors to the ANPP regression parameters
   # These are very precisely zero i.e. mean of zero and very low variance
   for (k in 1:2) {
@@ -78,10 +78,14 @@ model{
   tau <- 1 / (sigma ^ 2)
   
   # Define model for latent (mean) NPP;
+  # Event[,k] represents the amount of precipitation in the current growing
+  # year received in different size classes, where k indexes the event size
+  # class
+  # (k=1 for < 5 mm; k=2 for 5-15 mm; k=3 for 15-30 mm; k=4 for >30 mm);
   for (i in 1:N) {
     # Calculate mu, the mean of the distribution of NPP
     # (convert antecedent precipitation (antX) from inches to mm.)
-    mu[i] <- a[1] + a[2] * antX[YearID[i]] 
+    mu[i] <- a[1] + a[2] * antX[YearID[i]]
     # Likelihood for observed NPP - it is a normal distribution with
     # mean mu and sd tau
     NPP[i] ~ dnorm(mu[i], tau)

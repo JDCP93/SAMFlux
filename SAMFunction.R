@@ -1,4 +1,4 @@
-SAM <- function(Precip,NEE,Nlag,block,prior=FALSE){
+SAM <- function(NPP,Precip,Nlag,block,prior=FALSE){
    
    # Function that runs a SAM model as per Ogle et al 2015 and outputs modelled
    # NPP as well as a variety of performance metrics
@@ -6,7 +6,7 @@ SAM <- function(Precip,NEE,Nlag,block,prior=FALSE){
    # Inputs:
    # - Precip = a Mx12 matrix where each row corresponds to a year and each column
    #            corresponds to a certain month (i.e. column 1 = Jan, col 2 = Feb)
-   # - NEE = a Nx2 matrix where column 1 is the year and 
+   # - NPP = a Nx2 matrix where column 1 is the year and 
    #         column 2 is the NEE for that year
    # - Nlag = number of years of antecedent precipitation to consider
    # - block = a Nlag x 12 matrix where [i,j] is the time block that month i
@@ -26,28 +26,23 @@ SAM <- function(Precip,NEE,Nlag,block,prior=FALSE){
    # - Q95 = 95th quantile of mean NPP
    # - NMSE = normalised mean square error of modelled vs observed NPP
    
-    
-   
-   # load the Bayesian package
-   library(rjags) 
 
+   
    # Create input list for the Bayesian model
    Data = list('Nlag' = Nlag
                ,'block'= block
+               # number of years for which NPP data are available,
+               ,'N' = nrow(NPP) 
                # number of years for which monthly precipitation data is available
                ,'Nyrs' = nrow(Precip) 
                # number of time blocks the months are partitioned into
                ,'Nblocks' = max(block)
                # Monthly precip data
-               ,'ppt' = Precip
-               # Year ID for NPP - while Ogle has precip going back way further
-               # than her NPP and hence needs to line them up using a YearID,
-               # our Precip and NEE data have the same timeframe
-               ,'YearID' = 1:nrow(NEE)+Nlag
+               ,'ppt' = (Precip[,2:13])*25.4
+               # Year ID for NPP
+               ,'YearID' = NPP[,3]
                # Yearly NPP data - comment this out to obtain the priors
-               ,'NPP' = NEE[,2]
-               # number of years for which NPP and precip event data are available,
-               ,'N' = nrow(NEE)
+               ,'NPP' = NPP[,2] 
    )
    
    # If we're calculating priors, suppress the observed data
@@ -57,7 +52,7 @@ SAM <- function(Precip,NEE,Nlag,block,prior=FALSE){
    
    # Define the parameters for the model operation
    # samples to be kept after burn in
-   samples = 500
+   samples = 50000
    # iterations for burn in
    burn = samples * 0.1 
    # number of iterations where samplers adapt behaviour to maximise efficiency
