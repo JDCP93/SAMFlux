@@ -5,6 +5,7 @@ Last Updated: date()
 output:
   html_document:
     df_print: paged
+  word_document: default
 Date: 23/03/2020
 ---
 
@@ -20,7 +21,6 @@ library(gridExtra) # Source gridExtra for better plots
 library(DT) # Source DT for datatable
 library(dplyr) # Source dplyr for percent_rank
 library(ncdf4)
-setwd(getwd())
 ```
 ***
 # Introduction
@@ -102,7 +102,7 @@ US-Wkg has 10 years of data and was used instead (for some inexplicable reason)
 The below commands were used to copy the Met and Flux files from the storm 
 servers to my PC:
 
-```{bash Storm Server Files, eval=FALSE}
+```{bash Flux Files, eval = FALSE}
 scp z5293113@maelstrom.ccrc.unsw.edu.au:/srv/ccrc/data04/z3509830/Fluxnet_data/All_flux_sites_processed_PLUMBER2/Post-processed_PLUMBER2_outputs/Nc_files/Flux/US-Wkg_2005-2014_FLUXNET2015_Flux.nc .
 
 scp z5293113@maelstrom.ccrc.unsw.edu.au:/srv/ccrc/data04/z3509830/Fluxnet_data/All_flux_sites_processed_PLUMBER2/Post-processed_PLUMBER2_outputs/Nc_files/Met/US-Wkg_2005-2014_FLUXNET2015_Met.nc .
@@ -198,7 +198,7 @@ library(ggplot2)
 library(gridExtra) # Source gridExtra for better plots
 NPPobs = data.frame(Year=1:nrow(NEE)+2006,
                     NPP_obs = NEE[,2])
-NPPmod = data.frame(Year=1:length(SAM_posterior_3_6_20200325_152051$NPPmod$mean)+2006,
+NPPmod = data.frame(Year=1:length(SAM_posterior_3_6_20200325_152051$NPPmod$mean)+2009,
                     NPP_mod = SAM_posterior_3_6_20200325_152051$NPPmod$mean,
                     NPP_modmin = SAM_posterior_3_6_20200325_152051$NPPmod$min,
                     NPP_modmax = SAM_posterior_3_6_20200325_152051$NPPmod$max)
@@ -306,9 +306,11 @@ very poor R2 as a result.
 Maybe precipitation alone isn't enough at these sites?
 Maybe a longer dataset is needed?
 
-I will test with the Ogle data to see how the model deals with that
+I will test with the Ogle data to see how the model deals with that.
 
-```{r}
+ We load the data and run the model for the spring/non-spring method of time
+ blocking
+```{r  Load Ogle Data}
 # Load Ogle data
 Precip = read.table("data/dataset3.csv",header=TRUE,stringsAsFactors = FALSE)
 
@@ -322,9 +324,10 @@ Nlag = timeblock$Nlag
 block = timeblock$block
 # For the timeblock created, run the model
 SAM(NPP,Precip,Nlag,block,prior=FALSE)
-
 ```
 
+
+Plot the output against the observed
 ```{r}
 load("SAM_posterior_3_6_20200327_141610.Rdata")
 NPPobs = data.frame(Year=1:nrow(NPP)+1938,
@@ -366,6 +369,10 @@ grid.arrange(plot1, plot3)
 ```
 
 
+This doesn't look bad.
+
+We test again but this time with a standard time block of one per month.
+
 ```{r}
 # Load Ogle data
 Precip = read.table("data/dataset3.csv",header=TRUE,stringsAsFactors = FALSE)
@@ -381,6 +388,7 @@ Nlag = 3
 SAM(NPP,Precip,Nlag,block,prior=FALSE)
 ```
 
+Plot again 
 
 ```{r}
 load("SAM_posterior_3_36_20200327_145005.Rdata")
@@ -415,14 +423,15 @@ plotWeights$Month = factor(plotWeights$Month, levels = c("Jan","Feb","Mar","Apr"
 plot1 <- ggplot(plotWeights,aes(x=YearIntoPast,y=Weights,fill=Month)) +
       geom_bar(stat="identity", position=position_dodge(), linetype = "solid",size=0.5,color="black") +
       facet_grid(.~YearIntoPast,scales = "free_x",switch = "x", space = "free_y") +
-      ggtitle(paste0("3 year lag, spring/non-spring (R2 = ",
+      ggtitle(paste0("Ogle 3 year lag, 36 blocks (R2 = ",
                      signif(SAM_posterior_3_36_20200327_145005$R2,2), ", DIC = ",
                      signif(SAM_posterior_3_36_20200327_145005$DIC,4), ", MAE = ",
                      signif(SAM_posterior_3_36_20200327_145005$MAE,4),")"))
 grid.arrange(plot1, plot3)
 ```
 
-Ok, so the model is now working.
+Ok, so the model is now working. The output is relatively close to the observed
+but not ridiculously so. We also have feasible monthly weights.
 
 Let's run it again for the Netflux data - note the input style has changed.
 
@@ -480,8 +489,8 @@ colnames(Precip) <- c("Year","ppt1","ppt2","ppt3","ppt4","ppt5","ppt6","ppt7","p
 
 ```
 
-```{r}
-# Load Ogle data
+```{r Model Run}
+
 
 source("SAMFunction.R")
 block = matrix(1:36,nrow=3,byrow=TRUE)
@@ -491,7 +500,7 @@ SAM(NEE[-(1:3),],Precip,Nlag,block,prior=FALSE)
 ```
 
 
-```{r}
+```{r Plot Wkg}
 load("SAM_posterior_3_36_20200327_155054.Rdata")
 NPPobs = data.frame(Year=1:nrow(NEE)+2004,
                     NPP_obs = NEE[,2])
@@ -531,6 +540,236 @@ plot1 <- ggplot(plotWeights,aes(x=YearIntoPast,y=Weights,fill=Month)) +
 grid.arrange(plot1, plot3)
 ```
 
+This is way too accurate for me to believe the model has worked properly...
+I will test with the other flux sites.
+
+First we test for Ha1 which has the longest time series.
+
+Extract the data:
+
+```{r Netcdf Manipulation Ha1}
+
+name = "US-Ha1_1992-2012_FLUXNET2015_"
+
+Met = nc_open(paste0(name,"Met.nc"))
+Flux = nc_open(paste0(name,"Flux.nc"))
+
+time = ncvar_get(Met,"time")
+Tair = ncvar_get(Met,"Tair")
+Precip = ncvar_get(Met,"Precip")
+VPD = ncvar_get(Met,"VPD")
+NEE = ncvar_get(Flux,"NEE")
+
+ncatt_get(Met, "time")
+time_from = substr(ncatt_get(Met, "time")$units, 15, 33)
+time <- as.POSIXct(time, origin=time_from)
+
+nc_close(Met)
+nc_close(Flux)
+
+# Define unit conversions
+SEC_TO_30MIN = 1800
+KEL_TO_CEL = -273.15
+
+# Create data frame with the units converted
+# Precip is now in mm
+# Tair is now in Celsius
+df <- data.frame(time, NEE, Tair+KEL_TO_CEL,Precip*SEC_TO_30MIN,VPD)
+colnames(df)<- c("time","NEE","Tair","Precip","VPD")
+
+
+df_day <- df %>%
+      mutate(day=as.Date(time, format="%Y-%m-%d")) %>%
+      group_by(day) %>%               # group by the day column
+      summarise(NEE=sum(NEE),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
+
+df_month <- df_day %>%
+      mutate(month=format(as.Date(df_day$day),"%Y-%m")) %>%
+      group_by(month) %>%               # group by the day column
+      summarise(NEE=sum(NEE),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
+
+
+# Create the NEE input matrix
+
+df_day$Year = format(df_day$day,"%Y")
+NEE = aggregate(df_day['NEE'],by=df_day['Year'],sum)
+NEE$YearID = 1:nrow(NEE)
+
+# Create our Precip input matrix
+Precip = data.frame(NEE$Year,matrix(df_month$Precip,ncol = 12, byrow = TRUE))
+colnames(Precip) <- c("Year","ppt1","ppt2","ppt3","ppt4","ppt5","ppt6","ppt7","ppt8","ppt9","ppt10","ppt11","ppt12")
+```
+Run the model for Ha1
+
+
+```{r}
+source("SAMFunction.R")
+block = matrix(1:36,nrow=3,byrow=TRUE)
+Nlag = 3
+# For the timeblock created, run the model
+SAM(NEE[-(1:3),],Precip,Nlag,block,prior=FALSE)
+```
+And we now plot it
+
+```{r}
+load("SAM_posterior_3_36_20200330_121002.Rdata")
+NPPobs = data.frame(Year=1:nrow(NEE)+1992,
+                    NPP_obs = NEE[,2])
+NPPmod = data.frame(Year=1:length(SAM_posterior_3_36_20200330_121002$NPPmod$mean)+1995,
+                    NPP_mod = SAM_posterior_3_36_20200330_121002$NPPmod$mean,
+                    NPP_modmin = SAM_posterior_3_36_20200330_121002$NPPmod$min,
+                    NPP_modmax = SAM_posterior_3_36_20200330_121002$NPPmod$max)
+plot3 <- ggplot(NPPobs) +
+  geom_line(data=NPPobs,aes(Year,NPP_obs),color='steelblue',size=2) +
+  geom_point(data=NPPobs,aes(Year,NPP_obs),color='steelblue',size=2,na.rm=TRUE) +
+  geom_ribbon(data=NPPmod, aes(x=Year, ymin=NPP_modmin, ymax=NPP_modmax), fill="grey70", alpha=0.4) +
+  geom_line(data=NPPmod,aes(Year,NPP_mod)) +
+  theme_bw() +
+  theme(axis.line=element_line(colour = "black"),
+    panel.grid.major=element_blank(),
+    panel.grid.minor=element_blank(),
+    panel.border=element_blank(),
+    panel.background=element_blank()) 
+
+# Assemble the dataframe for spring/non-spring
+plotWeights = data.frame("Weights"=as.vector(t(SAM_posterior_3_36_20200330_121002$monthlyWeights$mean)),
+                         "YearIntoPast"=rep(0:2,each=12),
+                         "Month"=rep(c("Dec","Nov","Oct","Sep", "Aug","Jul",
+                                       "Jun", "May","Apr","Mar","Feb","Jan"),3))
+# Assign the factors
+plotWeights$Month = factor(plotWeights$Month, levels = c("Jan","Feb","Mar","Apr",
+                                                         "May","Jun","Jul","Aug",
+                                                         "Sep","Oct","Nov","Dec"))
+# Create plot ready for grid.assign
+plot1 <- ggplot(plotWeights,aes(x=YearIntoPast,y=Weights,fill=Month)) +
+      geom_bar(stat="identity", position=position_dodge(), linetype = "solid",size=0.5,color="black") +
+      facet_grid(.~YearIntoPast,scales = "free_x",switch = "x", space = "free_y") +
+      ggtitle(paste0("3 year lag, spring/non-spring (R2 = ",
+                     signif(SAM_posterior_3_36_20200330_121002$R2,2), ", DIC = ",
+                     signif(SAM_posterior_3_36_20200330_121002$DIC,4), ", MAE = ",
+                     signif(SAM_posterior_3_36_20200330_121002$MAE,4),")"))
+grid.arrange(plot1, plot3)
+```
+
+The monthly weights are super whack and are way too precise/noisy to logically be 
+accepted as modelling a physical relationship - this is fitting to noise as Gab
+said, I believe.
+
+One last test, we model the Var data set...
+
+```{r Netcdf Manipulation Var}
+
+name = "US-Var_2001-2014_FLUXNET2015_"
+
+Met = nc_open(paste0(name,"Met.nc"))
+Flux = nc_open(paste0(name,"Flux.nc"))
+
+time = ncvar_get(Met,"time")
+Tair = ncvar_get(Met,"Tair")
+Precip = ncvar_get(Met,"Precip")
+VPD = ncvar_get(Met,"VPD")
+NEE = ncvar_get(Flux,"NEE")
+
+ncatt_get(Met, "time")
+time_from = substr(ncatt_get(Met, "time")$units, 15, 33)
+time <- as.POSIXct(time, origin=time_from)
+
+nc_close(Met)
+nc_close(Flux)
+
+# Define unit conversions
+SEC_TO_30MIN = 1800
+KEL_TO_CEL = -273.15
+
+# Create data frame with the units converted
+# Precip is now in mm
+# Tair is now in Celsius
+df <- data.frame(time, NEE, Tair+KEL_TO_CEL,Precip*SEC_TO_30MIN,VPD)
+colnames(df)<- c("time","NEE","Tair","Precip","VPD")
+
+
+df_day <- df %>%
+      mutate(day=as.Date(time, format="%Y-%m-%d")) %>%
+      group_by(day) %>%               # group by the day column
+      summarise(NEE=sum(NEE),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
+
+df_month <- df_day %>%
+      mutate(month=format(as.Date(df_day$day),"%Y-%m")) %>%
+      group_by(month) %>%               # group by the day column
+      summarise(NEE=sum(NEE),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
+
+
+# Create the NEE input matrix
+
+df_day$Year = format(df_day$day,"%Y")
+NEE = aggregate(df_day['NEE'],by=df_day['Year'],sum)
+NEE$YearID = 1:nrow(NEE)
+
+# Create our Precip input matrix
+Precip = data.frame(NEE$Year,matrix(df_month$Precip,ncol = 12, byrow = TRUE))
+colnames(Precip) <- c("Year","ppt1","ppt2","ppt3","ppt4","ppt5","ppt6","ppt7","ppt8","ppt9","ppt10","ppt11","ppt12")
+```
+
+Run the model:
+```{r}
+source("SAMFunction.R")
+block = matrix(1:36,nrow=3,byrow=TRUE)
+Nlag = 3
+# For the timeblock created, run the model
+SAM(NEE[-(1:3),],Precip,Nlag,block,prior=FALSE)
+```
+
+and finally, plot the results:
+
+```{r}
+load("SAM_posterior_3_36_20200330_124141.Rdata")
+NPPobs = data.frame(Year=1:nrow(NEE)+2001,
+                    NPP_obs = NEE[,2])
+NPPmod = data.frame(Year=1:length(SAM_posterior_3_36_20200330_124141$NPPmod$mean)+2004,
+                    NPP_mod = SAM_posterior_3_36_20200330_124141$NPPmod$mean,
+                    NPP_modmin = SAM_posterior_3_36_20200330_124141$NPPmod$min,
+                    NPP_modmax = SAM_posterior_3_36_20200330_124141$NPPmod$max)
+plot3 <- ggplot(NPPobs) +
+  geom_line(data=NPPobs,aes(Year,NPP_obs),color='steelblue',size=2) +
+  geom_point(data=NPPobs,aes(Year,NPP_obs),color='steelblue',size=2,na.rm=TRUE) +
+  geom_ribbon(data=NPPmod, aes(x=Year, ymin=NPP_modmin, ymax=NPP_modmax), fill="grey70", alpha=0.4) +
+  geom_line(data=NPPmod,aes(Year,NPP_mod)) +
+  theme_bw() +
+  theme(axis.line=element_line(colour = "black"),
+    panel.grid.major=element_blank(),
+    panel.grid.minor=element_blank(),
+    panel.border=element_blank(),
+    panel.background=element_blank()) 
+
+# Assemble the dataframe for spring/non-spring
+plotWeights = data.frame("Weights"=as.vector(t(SAM_posterior_3_36_20200330_124141$monthlyWeights$mean)),
+                         "YearIntoPast"=rep(0:2,each=12),
+                         "Month"=rep(c("Dec","Nov","Oct","Sep", "Aug","Jul",
+                                       "Jun", "May","Apr","Mar","Feb","Jan"),3))
+# Assign the factors
+plotWeights$Month = factor(plotWeights$Month, levels = c("Jan","Feb","Mar","Apr",
+                                                         "May","Jun","Jul","Aug",
+                                                         "Sep","Oct","Nov","Dec"))
+# Create plot ready for grid.assign
+plot1 <- ggplot(plotWeights,aes(x=YearIntoPast,y=Weights,fill=Month)) +
+      geom_bar(stat="identity", position=position_dodge(), linetype = "solid",size=0.5,color="black") +
+      facet_grid(.~YearIntoPast,scales = "free_x",switch = "x", space = "free_y") +
+      ggtitle(paste0("3 year lag, spring/non-spring (R2 = ",
+                     signif(SAM_posterior_3_36_20200330_124141$R2,2), ", DIC = ",
+                     signif(SAM_posterior_3_36_20200330_124141$DIC,4), ", MAE = ",
+                     signif(SAM_posterior_3_36_20200330_124141$MAE,4),")"))
+grid.arrange(plot1, plot3)
+```
+This maps almost perfectly again. 
+
+The key issue bothering me is just how perfect the fit is. I will start over D: 
+
+It is possible that I need to add temperature and VPD - perhaps with such short
+time series and only one variable, it is too easy for the model to just 
+assign weights that fit well.
+
+A quick test of running the model as a prior has shown what we expect regarding 
+monthly and yearly weights (all roughly equal) and SD for the model.
 
 ***
 # Thoughts

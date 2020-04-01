@@ -3,7 +3,7 @@ NetCDFExtract = function(name){
 library(dplyr)
 library(ncdf4)
 
-setwd("~/Documents/SAM Modelling/FluxCode")
+
 
 Met = nc_open(paste0(name,"_Met.nc"))
 Flux = nc_open(paste0(name,"_Flux.nc"))
@@ -42,17 +42,22 @@ df_month <- df_day %>%
       group_by(month) %>%               # group by the day column
       summarise(NEE=sum(NEE),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
 
-# Create our Precip input matrix
-Precip = data.frame(matrix(df_month$Precip,ncol = 12, byrow = TRUE))
-colnames(Precip) <- c("ppt1","ppt2","ppt3","ppt4","ppt5","ppt6","ppt7","ppt8","ppt9","ppt10","ppt11","ppt12")
 
 # Create the NEE input matrix
 
 df_day$Year = format(df_day$day,"%Y")
 NEE = aggregate(df_day['NEE'],by=df_day['Year'],sum)
+NEE$YearID = 1:nrow(NEE)
 
-Flux = list("Precip"=Precip,"NEE"=NEE)
+# Create our Precip input matrix
+Precip = data.frame(NEE$Year,matrix(df_month$Precip,ncol = 12, byrow = TRUE))
+colnames(Precip) <- c("Year","ppt1","ppt2","ppt3","ppt4","ppt5","ppt6","ppt7","ppt8","ppt9","ppt10","ppt11","ppt12")
+
+# Create our temp input matrix
+Tair = data.frame(NEE$Year,matrix(df_month$Tair,ncol = 12, byrow = TRUE))
+colnames(Tair) <- c("Year","Tair1","Tair2","Tair3","Tair4","Tair5","Tair6","Tair7","Tair8","Tair9","Tair10","Tair11","Tair12")
+
+
+Flux = list("Precip"=Precip,"NEE"=NEE,"Tair"=Tair)
 }
 
-
-Flux = NetCDFExtract("US-Var_2001-2014_FLUXNET2015")
