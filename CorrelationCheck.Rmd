@@ -8,6 +8,9 @@ output:
 Today, I will perform some simple tests to confirm whether there is any correlation
 between antecedent rainfall and temperature and GPP/NPP/NEE.
 
+I will use simple methods to test for relationship between productivity and rainfall
+(maybe temperature) from a few months ago.
+
 My methodology will be as below:
 
 + Propose a few methods of searching for correlations
@@ -37,3 +40,80 @@ Ha1 = NetCDFExtract("US-Ha1_1992-2012_FLUXNET2015")
 
 ```
 
+***
+
+# Methodology
+
+Gab and Martin suggested a variety of methods. I will use the below:
+
++ Calculate correlation between yearly precip and NPP for each previous year
+
+
+
+
+
+***
+
+## Correlation between NPP and Lagged Yearly Precip
+
+We take the total yearly NPP from year i. We calculate the correlation between
+this and total yearly precipitaiton from years i,i-1,... for as far back as the 
+dataset allowed.
+
+Below we first check Kiona's data (Fort Collins) as studies have shown that precip
+from the last five years has an effect on the NPP of the current year.
+
+```{r}
+#Initiliase vectors
+YearlyCorrelation = rep(0,40)
+YearlyPValue = rep(0,40)
+YearlyMin = rep(0,40)
+YearlyMax = rep(0,40)
+# For each possible lag (at most we can go 40 years back), check correlation of
+# yearly total NPP vs yearly total precipitation
+MaxLag = 40
+for (i in 1:MaxLag){
+  YearlyCorrelation[i] = cor.test(NPP$NPP,rowSums(Precip[i:(i+51),2:13]),use="complete.obs")$estimate
+  YearlyPValue[i] = (cor.test(NPP$NPP,rowSums(Precip[i:(i+51),2:13]),use="complete.obs")$p.value<=0.05)
+  YearlyMin[i] = cor.test(NPP$NPP,rowSums(Precip[i:(i+51),2:13]),use="complete.obs")$conf.int[1]
+  YearlyMax[i] = cor.test(NPP$NPP,rowSums(Precip[i:(i+51),2:13]),use="complete.obs")$conf.int[2]
+}
+
+
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:39,
+                    Correlation=rev(YearlyCorrelation),
+                    pValue=rev(YearlyPValue),
+                    min = rev(YearlyMin), 
+                    max = rev(YearlyMax))
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plot <- ggplot(Yearly,aes(x=1:40,
+                          y=Correlation,
+                          color=pValue,
+                          ymin = min, 
+                          ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Yearly Total Precip vs NPP  Correlation (Site: Fort Collins")
+grid.arrange(plot)
+```
+
+As can be seen from the graph, the previous 3 years of rainfall (i, i-1, i-2) 
+are significantly correlated to the NPP in year i. This agrees with Kiona's paper
+and my previous work with the model investigating the ideal lag period.
+
+The two other significant lags at i-14 and i-21 seem unlikely to be supported by
+any mechanistic reason within the grassland although it is possible. 
+
+Since this method appears to provide a sanity check on the antecedent rainfall 
+being important for productivity, I will now apply it to the fluxnet sites.
