@@ -13,6 +13,7 @@ Tair = ncvar_get(Met,"Tair")
 Precip = ncvar_get(Met,"Precip")
 VPD = ncvar_get(Met,"VPD")
 NEE = ncvar_get(Flux,"NEE")
+GPP = ncvar_get(Flux,"GPP_DT")
 
 ncatt_get(Met, "time")
 time_from = substr(ncatt_get(Met, "time")$units, 15, 33)
@@ -29,18 +30,18 @@ KEL_TO_CEL = -273.15
 # Precip is now in mm
 # Tair is now in Celsius
 df <- data.frame(time, NEE, Tair+KEL_TO_CEL,Precip*SEC_TO_30MIN,VPD)
-colnames(df)<- c("time","NEE","Tair","Precip","VPD")
+colnames(df)<- c("time","NEE","GPP","Tair","Precip","VPD")
 
 
 df_day <- df %>%
       mutate(day=as.Date(time, format="%Y-%m-%d")) %>%
       group_by(day) %>%               # group by the day column
-      summarise(NEE=sum(NEE),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
+      summarise(NEE=sum(NEE),GPP=sum(GPP),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
 
 df_month <- df_day %>%
       mutate(month=format(as.Date(df_day$day),"%Y-%m")) %>%
       group_by(month) %>%               # group by the day column
-      summarise(NEE=sum(NEE),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
+      summarise(NEE=sum(NEE),GPP=sum(GPP),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
 
 
 # Create the NEE input matrix
@@ -48,6 +49,12 @@ df_month <- df_day %>%
 df_day$Year = format(df_day$day,"%Y")
 NEE = aggregate(df_day['NEE'],by=df_day['Year'],sum)
 NEE$YearID = 1:nrow(NEE)
+
+# Create the GPPinput matrix
+
+df_day$Year = format(df_day$day,"%Y")
+GPP = aggregate(df_day['GPP'],by=df_day['Year'],sum)
+GPP$YearID = 1:nrow(GPP)
 
 # Create our Precip input matrix
 Precip = data.frame(NEE$Year,matrix(df_month$Precip,ncol = 12, byrow = TRUE))
@@ -58,6 +65,6 @@ Tair = data.frame(NEE$Year,matrix(df_month$Tair,ncol = 12, byrow = TRUE))
 colnames(Tair) <- c("Year","Tair1","Tair2","Tair3","Tair4","Tair5","Tair6","Tair7","Tair8","Tair9","Tair10","Tair11","Tair12")
 
 
-Flux = list("Precip"=Precip,"NEE"=NEE,"Tair"=Tair)
+Flux = list("Precip"=Precip,"NEE"=NEE,"GPP"=GPP,"Tair"=Tair)
 }
 

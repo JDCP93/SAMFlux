@@ -1,0 +1,39 @@
+---
+title: "03/04/2020 Work"
+output:
+  html_document:
+    df_print: paged
+---
+
+Today, I will perform some simple tests to confirm whether there is any correlation
+between antecedent rainfall and temperature and GPP/NPP/NEE.
+
+My methodology will be as below:
+
++ Propose a few methods of searching for correlations
++ Check my methods using Kiona's data (which we are fairly certain have these
+correlations)
++ Use the methods on Var and Wkg FLUXNET data for NEE and GPP and see what we see!
+
+***
+
+# Data
+
+First of all, let's load in the data.
+
+```{r}
+
+#Load Kiona's Data
+Precip = read.table("data/dataset3.csv",header=TRUE,stringsAsFactors = FALSE)
+NPP = read.table("data/dataset2.csv",header=TRUE,stringsAsFactors = FALSE)
+NPP = NPP[,1:3]
+
+#Prepare to load netcdf files for fluxnet sites
+source("NCExtraction.R")
+
+Var = NetCDFExtract("US-Var_2001-2014_FLUXNET2015")
+Wkg = NetCDFExtract("US-Wkg_2005-2014_FLUXNET2015")
+Ha1 = NetCDFExtract("US-Ha1_1992-2012_FLUXNET2015")
+
+```
+
