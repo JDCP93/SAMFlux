@@ -5,6 +5,12 @@ output:
     df_print: paged
 ---
 
+```{r Setup, include=FALSE}
+library(ggplot2)
+library(gridExtra)
+```
+
+
 Today, I will perform some simple tests to confirm whether there is any correlation
 between antecedent rainfall and temperature and GPP/NPP/NEE.
 
@@ -354,7 +360,7 @@ Yep, as expected - no correlation.
 
 This correlation check hasn't shown any significant correlation between antecedent
 rainfall and productivity at any site but Fort Collins. Is it possible that this
-is an anomaly?
+site is an anomaly?
 
 Is it a longer time series that allow the correlations to become significant?
 
@@ -769,3 +775,58 @@ Still no significant correlations. Note also that in both restricted scenarios,
 Walnut Gulch loses the significance on lag 0 rainfall.
 
 I also tested various other restrictions around March-August of varying length.
+These all exhibited very similar results - no significant correlations (Walnut 
+Gulch did exhibit a significant correlation for a 4 year lag in one scenario but
+I believe this to be an artifact of the short data set)
+
+## Visual Comparison of Graphs
+
+I will have a little gander at plots to see if anything jumps out at me and to 
+maybe identify the growing seasons at each site.
+
+The below is a bit of code that might prove useful for checking GPP vs Precip for
+sites.
+
+```{r}
+name = "US-Var_2001-2014_FLUXNET2015"
+
+
+Met = nc_open(paste0(name,"_Met.nc"))
+Flux = nc_open(paste0(name,"_Flux.nc"))
+
+time = ncvar_get(Met,"time")
+Tair = ncvar_get(Met,"Tair")
+Precip = ncvar_get(Met,"Precip")
+VPD = ncvar_get(Met,"VPD")
+NEE = ncvar_get(Flux,"NEE")
+GPP = ncvar_get(Flux,"GPP_DT")
+
+ncatt_get(Met, "time")
+time_from = substr(ncatt_get(Met, "time")$units, 15, 33)
+time <- as.POSIXct(time, origin=time_from)
+
+nc_close(Met)
+nc_close(Flux)
+
+# Define unit conversions
+SEC_TO_30MIN = 1800
+KEL_TO_CEL = -273.15
+
+# Create data frame with the units converted
+# Precip is now in mm
+# Tair is now in Celsius
+df <- data.frame(time, NEE, GPP, Tair+KEL_TO_CEL,Precip*SEC_TO_30MIN,VPD)
+colnames(df)<- c("time","NEE","GPP","Tair","Precip","VPD")
+
+
+df_day <- df %>%
+  mutate(day=as.Date(time, format="%Y-%m-%d")) %>%
+  group_by(day) %>%               # group by the day column
+  summarise(NEE=sum(NEE),GPP=sum(GPP),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
+
+
+
+plot(df_day$day,df_day$GPP/max(df_day$GPP,na.rm=TRUE),col='green',type='l')
+lines(df_day$day,df_day$Precip/max(df_day$Precip,na.rm=TRUE),col='blue')
+```
+
