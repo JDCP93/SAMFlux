@@ -29,7 +29,7 @@ KEL_TO_CEL = -273.15
 # Create data frame with the units converted
 # Precip is now in mm
 # Tair is now in Celsius
-df <- data.frame(time, NEE, Tair+KEL_TO_CEL,Precip*SEC_TO_30MIN,VPD)
+df <- data.frame(time, NEE, GPP, Tair+KEL_TO_CEL,Precip*SEC_TO_30MIN,VPD)
 colnames(df)<- c("time","NEE","GPP","Tair","Precip","VPD")
 
 
