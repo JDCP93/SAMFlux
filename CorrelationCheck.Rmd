@@ -24,7 +24,7 @@ correlations)
 
 First of all, let's load in the data.
 
-```{r}
+```{r Data Import}
 
 #Load Kiona's Data
 Precip = read.table("data/dataset3.csv",header=TRUE,stringsAsFactors = FALSE)
@@ -63,27 +63,33 @@ dataset allowed.
 Below we first check Kiona's data (Fort Collins) as studies have shown that precip
 from the last five years has an effect on the NPP of the current year.
 
-```{r}
+```{r Fort Collins Yearly Corr}
+# Set values for years of NPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all NPP observations)
+NPPYrs = 52
+MaxLag = 40
 #Initiliase vectors
-YearlyCorrelation = rep(0,40)
-YearlyPValue = rep(0,40)
-YearlyMin = rep(0,40)
-YearlyMax = rep(0,40)
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
 # For each possible lag (at most we can go 40 years back), check correlation of
 # yearly total NPP vs yearly total precipitation
-MaxLag = 40
+# We have 52 years of NPP so we want 52 years of Precip, hence i:(i+51)
+
 for (i in 1:MaxLag){
-  YearlyCorrelation[i] = cor.test(NPP$NPP,rowSums(Precip[i:(i+51),2:13]),use="complete.obs")$estimate
-  YearlyPValue[i] = (cor.test(NPP$NPP,rowSums(Precip[i:(i+51),2:13]),use="complete.obs")$p.value<=0.05)
-  YearlyMin[i] = cor.test(NPP$NPP,rowSums(Precip[i:(i+51),2:13]),use="complete.obs")$conf.int[1]
-  YearlyMax[i] = cor.test(NPP$NPP,rowSums(Precip[i:(i+51),2:13]),use="complete.obs")$conf.int[2]
+  Stats = cor.test(NPP$NPP,rowSums(Precip[i:(i+NPPYrs-1),2:13]),use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = (Stats$p.value<=0.05)
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
 }
 
 
 
 # Assemble into dataframe
 # Reverse vectors so that from left to right, we are moving further into the past
-LagCorrelation = data.frame(0:39,
+LagCorrelation = data.frame(0:(MaxLag-1),
                     Correlation=rev(YearlyCorrelation),
                     pValue=rev(YearlyPValue),
                     min = rev(YearlyMin), 
@@ -91,7 +97,7 @@ LagCorrelation = data.frame(0:39,
 
 # Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
 # there is a significant correlation
-plot <- ggplot(Yearly,aes(x=1:40,
+plot <- ggplot(LagCorrelation,aes(x=0:(MaxLag-1),
                           y=Correlation,
                           color=pValue,
                           ymin = min, 
@@ -104,7 +110,7 @@ plot <- ggplot(Yearly,aes(x=1:40,
              color="grey",
              linetype='dashed') +
   xlab("Year into Past") +
-  ggtitle("Yearly Total Precip vs NPP  Correlation (Site: Fort Collins")
+  ggtitle("Yearly Total Precip vs NPP Correlation (Site: Fort Collins)")
 grid.arrange(plot)
 ```
 
@@ -117,3 +123,648 @@ any mechanistic reason within the grassland although it is possible.
 
 Since this method appears to provide a sanity check on the antecedent rainfall 
 being important for productivity, I will now apply it to the fluxnet sites.
+
+```{r Vaira Yearly Corr NEE}
+# Set values for years of NEE data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all NPP observations)
+NEEYrs = 14
+MaxLag = 4
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total NEE vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(Var$NEE[i:NEEYrs,2],
+                   rowSums(Var$Precip[1:(NEEYrs-i+1),2:13]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=rev(YearlyCorrelation),
+                            pValue=rev(YearlyPValue),
+                            min = rev(YearlyMin), 
+                            max = rev(YearlyMax))
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plot <- ggplot(LagCorrelation,aes(x=0:MaxLag,
+                          y=Correlation,
+                          color=pValue,
+                          ymin = min, 
+                          ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Yearly Total Precip vs NEE Correlation (Site: Vaira Grasslands)")
+grid.arrange(plot)
+```
+
+As can be seen, there is no significant correlation at ANY lag between NEE and
+precip at Vaira. This clearly implies that NEE is not a good metric - it is 
+generally accepted that grasslands tend to be water-limited and productivity is
+highly driven by rainfall. We would definitely expect to at least see a correlation
+for a lag of 0 years (i.e. rainfall in year i against production in year i)
+
+This would likely explain why I've been having issues with my model for the 
+FLUXNET sites.
+
+Let's try again, but this time with GPP:
+
+```{r Vaira Yearly Corr GPP}
+# Set values for years of GPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all GPP observations)
+GPPYrs = 14
+MaxLag = 4
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total GPP vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(Var$GPP[i:GPPYrs,2],
+                   rowSums(Var$Precip[1:(GPPYrs-i+1),2:13]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plot <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Yearly Total Precip vs GPP Correlation (Site: Vaira Grasslands)")
+grid.arrange(plot)
+```
+
+Hm, this isn't too different. The correlation at lag 0 is nearly significant but
+isn't (p=0.08)
+
+```{r Walnut Gulch Yearly Corr GPP}
+# Set values for years of GPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all GPP observations)
+GPPYrs = 10
+MaxLag = 4
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total GPP vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(Wkg$GPP[i:GPPYrs,2],
+                   rowSums(Wkg$Precip[1:(GPPYrs-i+1),2:13]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plot <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Yearly Total Precip vs GPP Correlation (Site: Walnut Gulch)")
+grid.arrange(plot)
+```
+
+Here we go! A significant correlation between lag 0 rainfall and productivity 
+which could be reasonably hypothesised. No significant correlation at longer lags
+however.
+
+Next we check Harvard Forest. I'd expect this to not exhibit any correlations
+at any lag due to the longer time scales over which forests tend to respond
+to meteorological drivers (e.g. soil water providing a buffer from lack of rain)
+
+```{r Harvard Forest Yearly Corr GPP}
+# Set values for years of GPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all GPP observations)
+GPPYrs = 21
+MaxLag = 4
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total GPP vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(Ha1$GPP[i:GPPYrs,2],
+                   rowSums(Ha1$Precip[1:(GPPYrs-i+1),2:13]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plot <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Yearly Total Precip vs GPP Correlation (Site: Harvard Forest)")
+grid.arrange(plot)
+```
+
+Yep, as expected - no correlation.
+
+This correlation check hasn't shown any significant correlation between antecedent
+rainfall and productivity at any site but Fort Collins. Is it possible that this
+is an anomaly?
+
+Is it a longer time series that allow the correlations to become significant?
+
+Is it the metric used to measure productivity?
+
+Is it because yearly rainfall isn't a good metric - rain falling in December is
+unlikely to affect the productivity of a grassland (or a deciduous forest for that
+matter) since it is falling outside of the growing season.
+
+***
+
+## Correlation on growing season rainfall
+
+All 4 of these sites are located in the USA where spring/summer, and hence the 
+growing season, occurs roughly between March and August. I will check correlation
+between GPP/NPP and MAMJJA rainfall totals for various lag periods.
+
+First we check for Fort Collins and we would expect to see very similar results
+to the full year precipitation (productivity is basically restricted to the 
+growing season since the NPP is estimated from harvested biomass)
+
+```{r Fort Collins Growing Season Corr}
+# Set values for years of NPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all NPP observations)
+NPPYrs = 52
+MaxLag = 40
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag (at most we can go 40 years back), check correlation of
+# yearly total NPP vs yearly total precipitation
+# We have 52 years of NPP so we want 52 years of Precip, hence i:(i+51)
+
+for (i in 1:MaxLag){
+  Stats = cor.test(NPP$NPP,rowSums(Precip[i:(i+NPPYrs-1),3:9]),use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = (Stats$p.value<=0.05)
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:(MaxLag-1),
+                    Correlation=rev(YearlyCorrelation),
+                    pValue=rev(YearlyPValue),
+                    min = rev(YearlyMin), 
+                    max = rev(YearlyMax))
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plot <- ggplot(LagCorrelation,aes(x=0:(MaxLag-1),
+                          y=Correlation,
+                          color=pValue,
+                          ymin = min, 
+                          ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Growing Season Precip vs NPP Correlation (Site: Fort Collins)")
+grid.arrange(plot)
+```
+
+
+As expected, we still see the significant correlation for lags of length 0 to 3.
+
+Let's check for the FLUXNET sites:
+
+```{r FLUXNET Growing Season Corr GPP}
+#******************************************************************************
+# SITE: Harvard Forest
+#******************************************************************************
+
+# Set values for years of GPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all GPP observations)
+GPPYrs = 21
+MaxLag = 4
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total GPP vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(Ha1$GPP[i:GPPYrs,2],
+                   rowSums(Ha1$Precip[1:(GPPYrs-i+1),4:9]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plotHa1 <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Growing Season Precip vs GPP Correlation (Site: Harvard Forest)")
+
+#******************************************************************************
+# SITE: Walnut Gulch
+#******************************************************************************
+
+# Set values for years of GPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all GPP observations)
+GPPYrs = 10
+MaxLag = 4
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total GPP vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(Wkg$GPP[i:GPPYrs,2],
+                   rowSums(Wkg$Precip[1:(GPPYrs-i+1),4:9]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plotWkg <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Growing Season Precip vs GPP Correlation (Site: Walnut Gulch)")
+
+#******************************************************************************
+# SITE: Vaira Grasslands
+#******************************************************************************
+
+# Set values for years of GPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all GPP observations)
+GPPYrs = 14
+MaxLag = 4
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total GPP vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(Var$GPP[i:GPPYrs,2],
+                   rowSums(Var$Precip[1:(GPPYrs-i+1),4:9]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plotVar <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Growing Season Precip vs GPP Correlation (Site: Vaira Grasslands)")
+
+#******************************************************************************
+# Plot the graphs
+#******************************************************************************
+
+grid.arrange(plotVar,plotWkg,plotHa1,nrow=3)
+```
+
+When we look at March - August, the correlations are still non-significant and 
+therefore we cannot infer that there is any dependence on antecedent rainfall. 
+However, we will check April-June, a smaller window more limited to spring.
+
+
+```{r FLUXNET AMJ Corr GPP}
+#******************************************************************************
+# SITE: Harvard Forest
+#******************************************************************************
+
+# Set values for years of GPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all GPP observations)
+GPPYrs = 21
+MaxLag = 4
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total GPP vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(Ha1$GPP[i:GPPYrs,2],
+                   rowSums(Ha1$Precip[1:(GPPYrs-i+1),5:7]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plotHa1 <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("AMJ Precip vs GPP Correlation (Site: Harvard Forest)")
+
+#******************************************************************************
+# SITE: Walnut Gulch
+#******************************************************************************
+
+# Set values for years of GPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all GPP observations)
+GPPYrs = 10
+MaxLag = 4
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total GPP vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(Wkg$GPP[i:GPPYrs,2],
+                   rowSums(Wkg$Precip[1:(GPPYrs-i+1),5:7]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plotWkg <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("AMJ Precip vs GPP Correlation (Site: Walnut Gulch)")
+
+#******************************************************************************
+# SITE: Vaira Grasslands
+#******************************************************************************
+
+# Set values for years of GPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all GPP observations)
+GPPYrs = 14
+MaxLag = 4
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total GPP vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(Var$GPP[i:GPPYrs,2],
+                   rowSums(Var$Precip[1:(GPPYrs-i+1),5:7]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plotVar <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("AMJ Precip vs GPP Correlation (Site: Vaira Grasslands)")
+
+#******************************************************************************
+# Plot the graphs
+#******************************************************************************
+
+grid.arrange(plotVar,plotWkg,plotHa1,nrow=3)
+```
+
+Still no significant correlations. Note also that in both restricted scenarios, 
+Walnut Gulch loses the significance on lag 0 rainfall.
+
