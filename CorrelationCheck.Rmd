@@ -894,4 +894,25 @@ plot(factor(names(Model_Wkg$coefficients),levels=names(Model_Wkg$coefficients)),
 
 ```
 
+## Checking FLUXNET sites close to the Central Plains Experimental Range 
 
+The data from Kiona is from the Central Plains Experimental Range (CPER) which 
+is located close to Fort Collins (which is where some of the meteorological data 
+was obtained and hence why this data is referred to as Fort Collins in this here
+document).
+
+Checking the FLUXNET website (https://fluxnet.fluxdata.org/ accessed 07/04/2020),
+there are 3 sites located relatively close to CPER:
+
++ US-Sta: Saratoga, a Sagebrush steppe ecosystem with 5 years of data
++ US-NR1: Niwot Ridge, a subalpine evergreen needle forest with 17 years of data
++ US-GLE: GLEES, an evergeen needle forest with 11 years of data
+
+The two forests are at nearly twice the elevation of CPER and, combined with the
+different vegetation type, are not similar enough.
+
+Saratoga is closer in elevation and has a similar vegetation type but only 5 years
+of data. 
+
+Further afield, US-Cop (Corral Pocket) is a semi-arid grassland but again a short
+dataset of 7 years and 300+ miles from CPER.
