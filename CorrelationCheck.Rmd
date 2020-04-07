@@ -8,6 +8,8 @@ output:
 ```{r Setup, include=FALSE}
 library(ggplot2)
 library(gridExtra)
+library(ncdf4)
+library(dplyr)
 ```
 
 
@@ -124,7 +126,7 @@ As can be seen from the graph, the previous 3 years of rainfall (i, i-1, i-2)
 are significantly correlated to the NPP in year i. This agrees with Kiona's paper
 and my previous work with the model investigating the ideal lag period.
 
-The two other significant lags at i-14 and i-21 seem unlikely to be supported by
+The two other significant lags at i-13 and i-20 seem unlikely to be supported by
 any mechanistic reason within the grassland although it is possible. 
 
 Since this method appears to provide a sanity check on the antecedent rainfall 
@@ -787,7 +789,7 @@ maybe identify the growing seasons at each site.
 The below is a bit of code that might prove useful for checking GPP vs Precip for
 sites.
 
-```{r}
+```{r Simple Comparison Plot}
 name = "US-Var_2001-2014_FLUXNET2015"
 
 
@@ -796,7 +798,7 @@ Flux = nc_open(paste0(name,"_Flux.nc"))
 
 time = ncvar_get(Met,"time")
 Tair = ncvar_get(Met,"Tair")
-Precip = ncvar_get(Met,"Precip")
+PrecipVar = ncvar_get(Met,"Precip")
 VPD = ncvar_get(Met,"VPD")
 NEE = ncvar_get(Flux,"NEE")
 GPP = ncvar_get(Flux,"GPP_DT")
@@ -815,7 +817,7 @@ KEL_TO_CEL = -273.15
 # Create data frame with the units converted
 # Precip is now in mm
 # Tair is now in Celsius
-df <- data.frame(time, NEE, GPP, Tair+KEL_TO_CEL,Precip*SEC_TO_30MIN,VPD)
+df <- data.frame(time, NEE, GPP, Tair+KEL_TO_CEL,PrecipVar*SEC_TO_30MIN,VPD)
 colnames(df)<- c("time","NEE","GPP","Tair","Precip","VPD")
 
 
@@ -825,8 +827,71 @@ df_day <- df %>%
   summarise(NEE=sum(NEE),GPP=sum(GPP),Tair=mean(Tair),Precip=sum(Precip),VPD=mean(VPD))
 
 
-
+# We normalise the rain and precip to make it easier to compare them
 plot(df_day$day,df_day$GPP/max(df_day$GPP,na.rm=TRUE),col='green',type='l')
 lines(df_day$day,df_day$Precip/max(df_day$Precip,na.rm=TRUE),col='blue')
 ```
+
+Just from visual inspection of the above, it is hard to see any relationship 
+between precipitation and GPP - peaks in GPP don't seem to follow corresponding
+peaks in rainfall.
+
+## Linear Regression
+
+The below code conducts a linear regression for each site 
+
+```{r Linear Regression}
+
+# Model for Vaira Grasslands
+NPP_n = Var$GPP$GPP[5:14]/mean(Var$GPP$GPP[5:14],na.rm=TRUE)
+Lag0 = unname(rowSums(Var$Precip[5:14,2:13])/mean(rowSums(Var$Precip[5:14,2:13]),na.rm=TRUE))
+Lag1 = unname(rowSums(Var$Precip[4:13,2:13])/mean(rowSums(Var$Precip[4:13,2:13]),na.rm=TRUE))
+Lag2 = unname(rowSums(Var$Precip[3:12,2:13])/mean(rowSums(Var$Precip[3:12,2:13]),na.rm=TRUE))
+Lag3 = unname(rowSums(Var$Precip[2:11,2:13])/mean(rowSums(Var$Precip[2:11,2:13]),na.rm=TRUE))
+Lag4 =  unname(rowSums(Var$Precip[1:10,2:13])/mean(rowSums(Var$Precip[1:10,2:13]),na.rm=TRUE))
+
+Model_Var = lm(NPP_n ~ Lag0 + Lag1 + Lag2 + Lag3 + Lag4 - 1)
+
+
+# Model for Harvard Forest
+NPP_n = Ha1$GPP$GPP[5:21]/mean(Ha1$GPP$GPP[5:21],na.rm=TRUE)
+Lag0 = unname(rowSums(Ha1$Precip[5:21,2:13])/mean(rowSums(Ha1$Precip[5:21,2:13]),na.rm=TRUE))
+Lag1 = unname(rowSums(Ha1$Precip[4:20,2:13])/mean(rowSums(Ha1$Precip[4:20,2:13]),na.rm=TRUE))
+Lag2 = unname(rowSums(Ha1$Precip[3:19,2:13])/mean(rowSums(Ha1$Precip[3:19,2:13]),na.rm=TRUE))
+Lag3 = unname(rowSums(Ha1$Precip[2:18,2:13])/mean(rowSums(Ha1$Precip[2:18,2:13]),na.rm=TRUE))
+Lag4 = unname(rowSums(Ha1$Precip[1:17,2:13])/mean(rowSums(Ha1$Precip[1:17,2:13]),na.rm=TRUE))
+
+Model_Ha1 = lm(NPP_n ~ Lag0 + Lag1 + Lag2 + Lag3 + Lag4 - 1)
+
+
+# Model for Walnut Gulch
+GPP_n = Wkg$GPP$GPP[5:10]/mean(Wkg$GPP$GPP[5:10],na.rm=TRUE)
+Lag0 = unname(rowSums(Wkg$Precip[5:10,2:13])/mean(rowSums(Wkg$Precip[5:10,2:13]),na.rm=TRUE))
+Lag1 = unname(rowSums(Wkg$Precip[4:9,2:13])/mean(rowSums(Wkg$Precip[4:9,2:13]),na.rm=TRUE))
+Lag2 = unname(rowSums(Wkg$Precip[3:8,2:13])/mean(rowSums(Wkg$Precip[3:8,2:13]),na.rm=TRUE)) 
+Lag3 = unname(rowSums(Wkg$Precip[2:7,2:13])/mean(rowSums(Wkg$Precip[2:7,2:13]),na.rm=TRUE))
+Lag4 = unname(rowSums(Wkg$Precip[1:6,2:13])/mean(rowSums(Wkg$Precip[1:6,2:13]),na.rm=TRUE))
+
+Model_Wkg = lm(GPP_n ~ Lag0+Lag1+Lag2+Lag3+Lag4 - 1)
+
+
+# Model for Fort Collins
+NPP_n = NPP$NPP/mean(NPP$NPP,na.rm=TRUE)
+Lag0 = unname(rowSums(Precip[40:91,2:13])/mean(rowSums(Precip[40:91,2:13]),na.rm=TRUE))
+Lag1 = unname(rowSums(Precip[39:90,2:13])/mean(rowSums(Precip[39:90,2:13]),na.rm=TRUE))
+Lag2 = unname(rowSums(Precip[38:89,2:13])/mean(rowSums(Precip[38:89,2:13]),na.rm=TRUE))
+Lag3 = unname(rowSums(Precip[37:88,2:13])/mean(rowSums(Precip[37:88,2:13]),na.rm=TRUE)) 
+Lag4 = unname(rowSums(Precip[36:87,2:13])/mean(rowSums(Precip[36:87,2:13]),na.rm=TRUE))
+Lag5 = unname(rowSums(Precip[35:86,2:13])/mean(rowSums(Precip[35:86,2:13]),na.rm=TRUE))
+
+Model_FC = lm(NPP_n ~ Lag0 + Lag1 + Lag2 + Lag3 + Lag4 + Lag5 - 1)
+
+# Plot the coefficients
+plot(factor(names(Model_FC$coefficients),levels=names(Model_FC$coefficients)),Model_FC$coefficients,xlab = "Lags",ylab="Coefficient",main="Fort Collins Linear Model")
+plot(factor(names(Model_Var$coefficients),levels=names(Model_Var$coefficients)),Model_Var$coefficients,xlab = "Lags",ylab="Coefficient",main="Vaira Grasslands Linear Model")
+plot(factor(names(Model_Ha1$coefficients),levels=names(Model_Ha1$coefficients)),Model_Ha1$coefficients,xlab = "Lags",ylab="Coefficient",main="Harvard Forest Linear Model")
+plot(factor(names(Model_Wkg$coefficients),levels=names(Model_Wkg$coefficients)),Model_Wkg$coefficients,xlab = "Lags",ylab="Coefficient",main="Walnut Gulch Linear Model")
+
+```
+
 
