@@ -55,8 +55,8 @@ Ha1 = NetCDFExtract("US-Ha1_1992-2012_FLUXNET2015")
 Gab and Martin suggested a variety of methods. I will use the below:
 
 + Calculate correlation between yearly precip and NPP for each previous year
-
-
++ Visually compare precip and productivity
++ Perform linear regression on lagged precip and productivity
 
 
 
@@ -916,3 +916,160 @@ of data.
 
 Further afield, US-Cop (Corral Pocket) is a semi-arid grassland but again a short
 dataset of 7 years and 300+ miles from CPER.
+
+I have found the Park Grass experiment in the UK (http://www.era.rothamsted.ac.uk/Park)
+which looks promising. They have very long term timeseries for both met and yield
+data. I have emailed to request access - will have to see what they say.
+
+I have also located this site https://daac.ornl.gov/cgi-bin/dataset_lister.pl?p=13#grassland_anchor
+which may prove useful.
+
+From the DAAC ORNL site, I have reviewed all the grassland sites available and
+have identified the below sites as having decently long timeseries available:
+
++ BDK - Badkhyz, Turkmenistan, a temperate dry steppe with 34 years of NPP and 
+climate data
++ DZH - Dhzanybek in Kazakhstan, a temperate dry steppe with 34 years of NPP and 
+climate data
++ TWM - Towoomba in South Africa, a savanna with 30 years of NPP and climate data
++ KRS - Kursk in Russia, a humid temperate prairie with 30 years of NPP data but
+will need to find climate data
+
+We'll start with BDK and see whether there's any obvious correlation. 
+
+```{r Badkhyz Correlation}
+#*******************************************************************************
+# Load the data
+#*******************************************************************************
+
+MET = read.csv("BDK_MET_Proc.csv")
+NPP = read.csv("BDK_NPP_Proc.csv")
+
+#*******************************************************************************
+# Assess correlation for full year precip
+#*******************************************************************************
+
+# Set values for years of GPP data and max possible lag (i.e. max number of 
+# previous years of precip data that is available for all GPP observations)
+GPPYrs = 25
+MaxLag = 7
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+# For each possible lag check correlation of yearly total GPP vs yearly total 
+# precipitation
+
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(NPP[i:GPPYrs,2],
+                   rowSums(MET[1:(GPPYrs-i+1),2:13]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plot1 <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Yearly Total Precip vs GPP Correlation (Site: Badkhyz)")
+
+
+#*******************************************************************************
+# Growing Season Lags
+#*******************************************************************************
+
+#Initiliase vectors
+YearlyCorrelation = rep(0,MaxLag)
+YearlyPValue = rep(0,MaxLag)
+YearlyMin = rep(0,MaxLag)
+YearlyMax = rep(0,MaxLag)
+
+# Test correlation for each lag
+for (i in 1:(MaxLag+1)){
+  Stats = cor.test(NPP[i:GPPYrs,2],
+                   rowSums(MET[1:(GPPYrs-i+1),3:6]),
+                   use="complete.obs")
+  YearlyCorrelation[i] = Stats$estimate
+  YearlyPValue[i] = Stats$p.value<=0.05
+  YearlyMin[i] = Stats$conf.int[1]
+  YearlyMax[i] = Stats$conf.int[2]
+}
+
+# Assemble into dataframe
+# Reverse vectors so that from left to right, we are moving further into the past
+LagCorrelation = data.frame(0:MaxLag,
+                            Correlation=YearlyCorrelation,
+                            pValue=YearlyPValue,
+                            min = YearlyMin, 
+                            max = YearlyMax)
+
+# Plot correlation values with confidence intervals. Color red if p <= 0.05 i.e.
+# there is a significant correlation
+plot2 <- ggplot(LagCorrelation,
+               aes(x=0:MaxLag,
+                   y=Correlation,
+                   color=pValue,
+                   ymin = min, 
+                   ymax = max)) + 
+  geom_pointrange() +
+  scale_color_continuous(low="black",
+                         high="red",
+                         guide="none") +
+  geom_hline(yintercept=0,
+             color="grey",
+             linetype='dashed') +
+  xlab("Year into Past") +
+  ggtitle("Growing Season FMAM Precip vs GPP Correlation (Site: Badkhyz)")
+
+grid.arrange(plot1,plot2)
+```
+
+Hmm... there is no significant correlations here. Note that we only looked at the
+first 25 years of data to avoid the 4 year gap in NPP data from the early 1970s.
+
+Let's check the linear regression:
+
+```{r Badkhyz Linear Regression}
+#*******************************************************************************
+# Linear Regression
+#*******************************************************************************
+
+NPP_n = NPP$Biomass[1:25]/mean(NPP$Biomass[1:25],na.rm=TRUE)
+Lag0 = unname(rowSums(MET[8:32,2:13])/mean(rowSums(MET[8:32,2:13]),na.rm=TRUE))
+Lag1 = unname(rowSums(MET[7:31,2:13])/mean(rowSums(MET[7:31,2:13]),na.rm=TRUE))
+Lag2 = unname(rowSums(MET[6:30,2:13])/mean(rowSums(MET[6:30,2:13]),na.rm=TRUE))
+Lag3 = unname(rowSums(MET[5:29,2:13])/mean(rowSums(MET[5:29,2:13]),na.rm=TRUE)) 
+Lag4 = unname(rowSums(MET[4:28,2:13])/mean(rowSums(MET[4:28,2:13]),na.rm=TRUE))
+Lag5 = unname(rowSums(MET[3:27,2:13])/mean(rowSums(MET[3:27,2:13]),na.rm=TRUE))
+
+Model_BDK = lm(NPP_n ~ Lag0 + Lag1 + Lag2 + Lag3 + Lag4 + Lag5 - 1)
+
+# Plot the coefficients
+plot(factor(names(Model_FC$coefficients),levels=names(Model_FC$coefficients)),Model_FC$coefficients,xlab = "Lags",ylab="Coefficient",main="Badkhyz Linear Model")
+
+```
+
