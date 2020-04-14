@@ -76,14 +76,14 @@ FC_MAGPP = mean(FC_NPP[,2],na.rm=TRUE)
 
 # Put into dataframe
 MAP = c(BDK_MAP,TWM_MAP,KRS_MAP,DZH_MAP,Var_MAP,Wkg_MAP,FC_MAP)
-MAGPP = c(BDK_MAGPP,TWM_MAGPP,KRS_MAGPP,DZH_MAGPP,Var_MAGPP,Wkg_MAGPP,FC_MAGPP)
+MAProd = c(BDK_MAGPP,TWM_MAGPP,KRS_MAGPP,DZH_MAGPP,Var_MAGPP,Wkg_MAGPP,FC_MAGPP)
 MAT = c(12.8,18.7,5.2,5,15.8,15.6,8.8)
 Site = c("BDK","TWM","KRS","DZH","VAR","WKG","FCO")
 Method = c("AGB","AGB","AGB","AGB","GPP","GPP","ANPP")
 Lat = c(35.68,-24.90,51.67,49.33,38.41,31.74,40.82)
 Lon = c(62,28.35,36.5,46.78,-120.95,-109.94,-104.75)
 
-df = data.frame(Site,MAP,MAGPP,MAT,Method,Lat,Lon)
+df = data.frame(Site,MAP,MAProd,MAT,Method,Lat,Lon)
 
 #*******************************************************************************
 # Plot the data
@@ -91,13 +91,13 @@ df = data.frame(Site,MAP,MAGPP,MAT,Method,Lat,Lon)
 
 
 # Plot GPP vs Precip
-plot1 <- ggplot(df, aes(x=MAP,y=MAT,fill=Method)) + geom_point(aes(color=MAGPP),size=log(MAGPP)/2) +
+plot1 <- ggplot(df, aes(x=MAP,y=MAT,fill=Method)) + geom_point(aes(color=MAProd),size=log(MAProd)/2) +
   scale_color_gradient(low="blue",high="red") +
   geom_label_repel(label=Site,hjust=0, vjust=0) +
   xlab("Mean Annual Precipitation (mm)") +
   ylab("Mean Annual Temperature (degC)") +
   coord_cartesian(xlim=c(0,700),ylim=c(0,20),expand=FALSE) +
-  ggtitle("Precipitation vs Productivity for Grassland Datasets")
+  ggtitle("Climate vs Productivity (g/m2/yr) for Grassland Datasets")
         
 # Plot location of sites
 theme_set(theme_bw())
@@ -110,5 +110,5 @@ plot2 <- ggplot(data = world) +
   ggtitle("Location of Sites")
 
 # Put them together
-grid.arrange(plot2,plot1)
+grid.arrange(plot2,plot1,layout_matrix=rbind(c(1),c(2),c(2)))
 
